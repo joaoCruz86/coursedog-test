@@ -1,0 +1,22 @@
+{
+  "name": "coursedog-test",
+  "version": "1.0.0",
+  "description": "Playwright e2e tests — e-commerce auth/order flow and file upload",
+  "scripts": {
+    "test": "playwright test --project=chromium",
+    "test:all": "playwright test",
+    "test:headed": "playwright test --project=chromium --headed",
+    "test:ui": "playwright test --ui",
+    "test:auth": "playwright test tests/auth.spec.ts",
+    "test:order": "playwright test tests/order.spec.ts",
+    "test:upload": "playwright test tests/file-upload.spec.ts",
+    "test:api": "playwright test --project=api",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@types/node": "^22.0.0",
+    "dotenv": "^16.4.7",
+    "typescript": "^6.0.3"
+  }
+}

@@ -1,0 +1,6 @@
+id,name,email,role,status
+1,Alice Johnson,alice@example.com,admin,active
+2,Bob Smith,bob@example.com,editor,active
+3,Carol White,carol@example.com,viewer,inactive
+4,David Brown,david@example.com,editor,active
+5,Eve Davis,eve@example.com,viewer,active

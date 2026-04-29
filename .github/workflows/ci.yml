@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Playwright (${{ matrix.project }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium, api]
+
+    env:
+      CI: true
+      BASE_URL: https://qa-practice.netlify.app
+      API_BASE_URL: http://localhost:8887
+      USER_EMAIL: ${{ secrets.USER_EMAIL }}
+      USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser (chromium)
+        if: matrix.project == 'chromium'
+        run: npx playwright install --with-deps chromium
+
+      - name: Start API container
+        if: matrix.project == 'api'
+        run: |
+          docker run -d \
+            --name qa-api \
+            -p 8887:8887 \
+            --health-cmd="wget -qO- http://localhost:8887/ || exit 1" \
+            --health-interval=2s \
+            --health-timeout=2s \
+            --health-retries=15 \
+            rvancea/qa-practice-api:latest
+
+      - name: Wait for API to be healthy
+        if: matrix.project == 'api'
+        run: |
+          echo "Polling http://localhost:8887 ..."
+          for attempt in $(seq 1 30); do
+            if curl -fsS -o /dev/null http://localhost:8887/; then
+              echo "API responsive after ${attempt}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::API did not become healthy within 30s"
+          docker ps -a
+          docker logs qa-api || true
+          exit 1
+
+      - name: Run Playwright tests
+        run: npx playwright test --project=${{ matrix.project }}
+
+      - name: Capture API container logs
+        if: always() && matrix.project == 'api'
+        run: docker logs qa-api > api-container.log 2>&1 || true
+
+      - name: Stop API container
+        if: always() && matrix.project == 'api'
+        run: docker rm -f qa-api || true
+
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.project }}
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload test results (traces, videos, screenshots)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.project }}
+          path: test-results/
+          retention-days: 7
+
+      - name: Upload API container logs
+        if: always() && matrix.project == 'api'
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-container-log
+          path: api-container.log
+          retention-days: 7
