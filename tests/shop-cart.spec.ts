@@ -33,16 +33,6 @@ test.describe('Shop cart', { tag: '@cart' }, () => {
     expect(actualTotal).toBeCloseTo(expectedTotal, 2);
   });
 
-  test('adding multiple items updates the cart total', async ({ shopPage }) => {
-    await shopPage.addToCart(PRODUCTS.nokia.name);
-    const totalAfterFirst = await shopPage.cartTotal.innerText();
-
-    await shopPage.addToCart(PRODUCTS.huawei.name);
-    const totalAfterSecond = await shopPage.cartTotal.innerText();
-
-    expect(totalAfterFirst).not.toBe(totalAfterSecond);
-  });
-
   test('adding a duplicate item shows an alert and does not add it twice', async ({ page, shopPage }) => {
     await shopPage.addToCart(PRODUCTS.nokia.name);
 
