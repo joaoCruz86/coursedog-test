@@ -49,19 +49,15 @@ jobs:
         run: |
           docker run -d \
             --name qa-api \
-            -p 8887:8887 \
-            --health-cmd="wget -qO- http://localhost:8887/ || exit 1" \
-            --health-interval=2s \
-            --health-timeout=2s \
-            --health-retries=15 \
+            -p 8887:8081 \
             rvancea/qa-practice-api:latest
 
       - name: Wait for API to be healthy
         if: matrix.project == 'api'
         run: |
-          echo "Polling http://localhost:8887 ..."
+          echo "Polling http://localhost:8887/api/v1/employees ..."
           for attempt in $(seq 1 30); do
-            if curl -fsS -o /dev/null http://localhost:8887/; then
+            if curl -fsS -o /dev/null http://localhost:8887/api/v1/employees; then
               echo "API responsive after ${attempt}s"
               exit 0
             fi
