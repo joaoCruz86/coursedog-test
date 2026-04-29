@@ -1,4 +1,5 @@
 import { Page } from '@playwright/test';
+import { gotoWithRetry } from './utils';
 
 export class FileUploadPage {
   readonly page: Page;
@@ -12,7 +13,7 @@ export class FileUploadPage {
   get successMessage() { return this.page.getByRole('alert').or(this.page.locator('.alert, .success, [class*="success"], [class*="upload"]')).first(); }
 
   async navigate(): Promise<void> {
-    await this.page.goto('/file-upload');
+    await gotoWithRetry(this.page, '/file-upload');
   }
 
   async uploadFile(filePath: string): Promise<void> {

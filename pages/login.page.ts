@@ -1,4 +1,5 @@
 import { Page, expect } from '@playwright/test';
+import { gotoWithRetry } from './utils';
 
 export class LoginPage {
   readonly page: Page;
@@ -13,7 +14,7 @@ export class LoginPage {
   get errorMessage()  { return this.page.getByRole('alert').or(this.page.locator('.alert, .error, [class*="error"], [class*="alert"]')).first(); }
 
   async navigate(): Promise<void> {
-    await this.page.goto('/auth_ecommerce');
+    await gotoWithRetry(this.page, '/auth_ecommerce');
   }
 
   async login(email: string, password: string): Promise<void> {
