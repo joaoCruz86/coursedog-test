@@ -2,7 +2,9 @@
 
 End-to-end tests for the [QA Practice](https://qa-practice.netlify.app) site, covering the e-commerce auth/order flow and file upload scenarios. Built as a take-home for the **Coursedog Data Integration QA Engineer** role.
 
-The main deliverable is the **UI suite** — runs locally with nothing more than Node + Playwright. A bonus **API suite** is included for completeness; it requires Docker but is fully optional.
+The main deliverable is the **UI suite** — runs locally with nothing more than Node + Playwright. A bonus **API suite** was added as a separate set of tests as an additional exercise to demonstrate backend testing approach, focusing on request validation, response handling, and test structure. it requires Docker but is fully optional.
+
+While Playwright enables cross-browser testing, this project uses Chromium to ensure consistent execution and simplify the scope of the exercise.
 
 ---
 
@@ -20,23 +22,22 @@ The main deliverable is the **UI suite** — runs locally with nothing more than
 ## Setup
 
 ```bash
-# 1. Install dependencies
+1. Install dependencies
 npm install
 
-# 2. Install the Chromium browser
+2. Install the Chromium browser
 npx playwright install chromium
 
-# 3. Configure credentials
+3. Configure credentials
 cp .env.example .env
-# .env already contains the public test creds (admin@admin.com / admin123)
-# from the qa-practice.netlify.app login page — edit if you have your own.
+.env already contains the public test creds (admin@admin.com / admin123)
 ```
 
-> The `.env` file is git-ignored. Credentials are never hardcoded — the suite throws a clear error at startup if `USER_EMAIL` or `USER_PASSWORD` are missing.
+The `.env` file is git-ignored. Credentials are never hardcoded, the suite throws a clear error at startup if `USER_EMAIL` or `USER_PASSWORD` are missing.
 
 ---
 
-## Running tests (UI — no Docker required)
+## Running tests (Playwright UI — no Docker required)
 
 ```bash
 npm test            # full UI suite (chromium, headless)
@@ -51,7 +52,7 @@ npm run report      # open the most recent HTML report
 | `npm run test:upload` | File upload + CSV schema validation |
 | `npx playwright test tests/shop-cart.spec.ts` | Cart behaviour |
 | `npx playwright test tests/shipping-details.spec.ts` | Checkout form + confirmation |
-| `npx playwright test tests/order-flow.spec.ts` | Full login → order → logout smoke |
+| `npx playwright test tests/order-flow.spec.ts` | Full login > order > logout smoke |
 
 ---
 
@@ -189,7 +190,7 @@ A small API suite ([`tests/bonus-api.spec.ts`](tests/bonus-api.spec.ts)) exercis
 
 ### Prerequisite
 
-Docker installed and running. (CPU virtualization must be enabled in BIOS — Docker Desktop will not start otherwise.)
+Docker installed and running.
 
 ### Start the API container
 
