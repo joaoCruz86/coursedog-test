@@ -4,7 +4,7 @@
 
 End-to-end tests for the [QA Practice](https://qa-practice.netlify.app/auth_ecommerce) site, covering the e-commerce auth/order flow and file upload scenarios. Built as a take-home for the **Coursedog Data Integration QA Engineer** role.
 
-The main deliverable is the **UI suite** — runs locally with nothing more than Node + Playwright. A bonus **API suite** was added as a separate set of tests as an additional exercise to demonstrate backend testing approach, focusing on request validation, response handling, and test structure. it requires Docker but is fully optional.
+The main deliverable is the **UI suite**, that runs locally with nothing more than Node + Playwright. A bonus **API suite** was added as a separate set of tests, as an additional exercise to demonstrate backend testing approach, focusing on request validation, response handling, and test structure. it requires Docker but is fully optional.
 
 While Playwright enables cross-browser testing, this project uses Chromium to ensure consistent execution and simplify the scope of the exercise.
 
@@ -59,6 +59,22 @@ npm run report      # open the most recent HTML report
 | `npx playwright test tests/order-flow.spec.ts` | Full login > order > logout smoke |
 
 ---
+
+## Running on CI (GitHub Actions)
+
+The CI pipeline runs automatically on every push and pull request. Otherwise you can run it manualy as per below steps:
+
+### Run manually
+
+1. Go to the **Actions** tab in this repository
+2. Select the **CI** workflow
+3. Click **Run workflow**
+4. Choose the branch (main) and confirm
+
+The pipeline will:
+- Start the API via Docker
+- Run Playwright tests (UI + API)
+- Generate a test report
 
 ## Test structure
 
