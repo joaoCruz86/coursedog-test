@@ -1,8 +1,12 @@
 # QA Practice — Playwright Test Suite
 
-End-to-end tests for the [QA Practice](https://qa-practice.netlify.app) site, covering the e-commerce auth/order flow and file upload scenarios. Built as a take-home for the **Coursedog Data Integration QA Engineer** role.
+[![CI](https://github.com/joaoCruz86/coursedog-test/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/joaoCruz86/coursedog-test/actions/workflows/ci.yml)
+
+End-to-end tests for the [QA Practice](https://qa-practice.netlify.app/auth_ecommerce) site, covering the e-commerce auth/order flow and file upload scenarios. Built as a take-home for the **Coursedog Data Integration QA Engineer** role.
 
 The main deliverable is the **UI suite** — runs locally with nothing more than Node + Playwright. A bonus **API suite** is included for completeness; it requires Docker but is fully optional.
+
+**Live CI:** [github.com/joaoCruz86/coursedog-test/actions](https://github.com/joaoCruz86/coursedog-test/actions) — every run includes a downloadable HTML report, traces, and (on failure) screenshots and videos.
 
 ---
 
@@ -165,21 +169,36 @@ Every push to `main` and every pull request runs the full suite on GitHub-hosted
 
 (Without these, `requireEnv()` throws at startup. Set them in **Settings → Secrets and variables → Actions**.)
 
-### How to inspect a CI run (recruiter quick path)
+### How to view CI runs and reports — no clone, no install
+
+The repo is public, so anyone can browse the full CI history straight from GitHub:
+
+1. **Open the Actions tab:** [github.com/joaoCruz86/coursedog-test/actions](https://github.com/joaoCruz86/coursedog-test/actions)
+2. Click the most recent **CI** run to see both jobs (`Playwright (chromium)` and `Playwright (api)`) with per-step logs.
+3. Scroll to the **Artifacts** section at the bottom of the run page and download `playwright-report-chromium` (and/or `playwright-report-api`).
+4. Unzip it and open `index.html` in any browser — the full Playwright HTML report opens with status per test, durations, traces, screenshots, and videos for any failure.
+
+### How to manually trigger a fresh run
+
+The workflow has `workflow_dispatch` enabled, so anyone with write access (or anyone running it on a fork) can re-run the suite on demand:
+
+- **From the GitHub UI:** Actions tab → **CI** workflow → **Run workflow** → pick `main` → **Run workflow**.
+- **From the CLI:**
+  ```bash
+  gh workflow run ci.yml
+  gh run watch
+  ```
+
+### From the CLI
+
+If you have `gh` installed and prefer the terminal:
 
 ```bash
-# View the latest run in the browser
-gh run view --web
-
-# Or list runs and pick one
-gh run list
-
-# Download the HTML report artifact and open it locally
-gh run download --name playwright-report-chromium
-npx playwright show-report
+gh run view --web                                # open latest run in browser
+gh run list                                      # list recent runs
+gh run download --name playwright-report-chromium  # download the UI report
+npx playwright show-report                       # open the downloaded report
 ```
-
-The HTML report includes test status, traces, screenshots, and videos for any failures — everything you need to diagnose a regression without re-running the suite.
 
 ---
 
