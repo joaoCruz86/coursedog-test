@@ -188,7 +188,7 @@ This split is what makes `npm test` work with **zero Docker setup** — recruite
 
 ### CI Configuration
 [`playwright.config.ts`](playwright.config.ts) is tuned differently for local versus CI:
-- **Workers**: `4` — fast local feedback. CI uses the same value; the suite is small enough that contention isn't an issue.
+- **Workers**: `4` locally for fast feedback, `2` on CI. GitHub-hosted runners have 2 vCPU and `qa-practice.netlify.app` is free-tier; running 4 parallel browsers against the same cold-start host caused intermittent `ERR_CONNECTION_RESET` / `ERR_ABORTED` errors at the navigation layer. Halving the worker count eliminates the contention without losing meaningful parallelism on a small suite.
 - **Retries**: `0` locally for fast feedback, `2` on CI (`process.env.CI ? 2 : 0`) to absorb network flakiness on shared runners without masking real failures.
 - **`forbidOnly: !!process.env.CI`** — fails the build if anyone accidentally commits a `test.only(...)`.
 - **Trace**: `on-first-retry` — full step-by-step trace captured the moment a flaky test retries, available in the HTML report for inspection.
