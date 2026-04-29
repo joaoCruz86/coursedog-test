@@ -1,6 +1,8 @@
 # QA Practice — Playwright Test Suite
 
-End-to-end tests for the [QA Practice](https://qa-practice.netlify.app) site, covering the e-commerce auth/order flow and file upload scenarios.
+End-to-end tests for the [QA Practice](https://qa-practice.netlify.app) site, covering the e-commerce auth/order flow and file upload scenarios. Built as a take-home for the **Coursedog Data Integration QA Engineer** role.
+
+The main deliverable is the **UI suite** — runs locally with nothing more than Node + Playwright. A bonus **API suite** is included for completeness; it requires Docker but is fully optional.
 
 ---
 
@@ -8,9 +10,10 @@ End-to-end tests for the [QA Practice](https://qa-practice.netlify.app) site, co
 
 | Tool | Version |
 |------|---------|
-| Node.js | ≥ 18 |
-| npm | ≥ 9 |
+| Node.js | ≥ 22 (Active LTS) |
+| npm | ≥ 10 |
 | Playwright | 1.52 (installed via `npm install`) |
+| Docker | Only required for the bonus API suite |
 
 ---
 
@@ -25,60 +28,71 @@ npx playwright install chromium
 
 # 3. Configure credentials
 cp .env.example .env
-# Fill in USER_EMAIL and USER_PASSWORD in .env
+# .env already contains the public test creds (admin@admin.com / admin123)
+# from the qa-practice.netlify.app login page — edit if you have your own.
 ```
 
-> The `.env` file is git-ignored. Credentials are never hardcoded — the test suite will throw a clear error if the required variables are missing.
+> The `.env` file is git-ignored. Credentials are never hardcoded — the suite throws a clear error at startup if `USER_EMAIL` or `USER_PASSWORD` are missing.
 
 ---
 
-## Running tests
+## Running tests (UI — no Docker required)
 
-The default `npm test` command runs the **UI suite only** (no Docker, no extra setup). The bonus API tests are opt-in — see [Bonus: API tests](#bonus-api-tests) below.
+```bash
+npm test            # full UI suite (chromium, headless)
+npm run test:headed # UI suite with a visible browser window
+npm run test:ui     # interactive Playwright UI mode
+npm run report      # open the most recent HTML report
+```
 
-| Command | Description |
-|---------|-------------|
-| `npm test` | Run the UI suite (chromium project, headless) — **no Docker required** |
-| `npm run test:headed` | Run the UI suite with a visible browser window |
-| `npm run test:ui` | Open the interactive Playwright UI |
-| `npm run test:auth` | Auth suite only |
-| `npm run test:order` | Order flow suite only |
-| `npm run test:upload` | File upload suite only |
-| `npm run test:api` | Bonus API suite only (**requires Docker** — see below) |
-| `npm run test:all` | UI **and** API suites (requires Docker) |
-| `npm run report` | Open the last HTML report |
+| Targeted commands | What it runs |
+|---|---|
+| `npm run test:auth` | Login / logout scenarios |
+| `npm run test:upload` | File upload + CSV schema validation |
+| `npx playwright test tests/shop-cart.spec.ts` | Cart behaviour |
+| `npx playwright test tests/shipping-details.spec.ts` | Checkout form + confirmation |
+| `npx playwright test tests/order-flow.spec.ts` | Full login → order → logout smoke |
 
 ---
 
 ## Test structure
 
 ```
-├── pages/                    # Page Object Model
-│   ├── login.page.ts         # navigate(), login(), expectErrorVisible()
-│   ├── shop.page.ts          # addToCart(), proceedToCheckout(), logout()
-│   ├── checkout.page.ts      # fillShippingDetails(), submitOrder(), expectConfirmationContains()
-│   └── file-upload.page.ts   # uploadFile(), submit(), expectSuccessVisible()
+├── pages/                         # Page Object Model — locators as public getters
+│   ├── login.page.ts
+│   ├── shop.page.ts
+│   ├── shipping-details.page.ts
+│   └── file-upload.page.ts
 │
 ├── tests/
-│   ├── auth.spec.ts          # 6 tests — login/logout happy path + edge cases
-│   ├── order.spec.ts         # 5 tests — cart, checkout, data integrity
-│   └── file-upload.spec.ts   # 5 tests — file types, input state, empty submit
+│   ├── auth.spec.ts               # 6 tests — login/logout + edge cases
+│   ├── shop-cart.spec.ts          # 7 tests — add, remove, totals, duplicate alert
+│   ├── shipping-details.spec.ts   # 4 tests — checkout form, validation, confirmation
+│   ├── order-flow.spec.ts         # 1 e2e smoke — full login → order → logout journey
+│   ├── file-upload.spec.ts        # 5 tests — CSV schema validation + upload behaviour
+│   └── bonus-api.spec.ts          # 4 tests — bonus API suite (Docker)
 │
 ├── test-data/
-│   ├── test.data.ts          # Centralised credentials, products, shipping values
-│   └── uploads/              # Sample files used by the upload tests
+│   ├── test.data.ts               # CREDENTIALS, PRODUCTS, SHIPPING constants + requireEnv()
+│   ├── csv-schema.ts              # CSV schema validator used by the upload suite
+│   ├── paths.ts                   # samplePath() helper (no fs in page objects)
+│   └── uploads/
+│       ├── sample.csv             # well-formed test data
+│       └── malformed.csv          # negative case for schema validation
 │
-├── fixtures.ts               # loggedIn fixture — handles login before order tests
-├── playwright.config.ts
-├── .env.example              # Environment variable template
-└── .env                      # Local credentials (git-ignored)
+├── fixtures.ts                    # loginPage / shopPage / shippingDetailsPage / uploadPage
+├── playwright.config.ts           # 2 projects: chromium (UI) + api (Docker, bonus)
+├── .env.example                   # Environment variable template
+└── .github/workflows/ci.yml       # GitHub Actions matrix: chromium + api
 ```
+
+**27 tests total** across 6 spec files: 23 UI (chromium project) + 4 API (api project).
 
 ---
 
 ## Scenarios covered
 
-### Authentication (`auth.spec.ts`)
+### Authentication ([`auth.spec.ts`](tests/auth.spec.ts))
 - Valid credentials log in and show the product list
 - Invalid credentials show an error message
 - Wrong password for a valid email shows an error message
@@ -86,43 +100,96 @@ The default `npm test` command runs the **UI suite only** (no Docker, no extra s
 - Empty password field prevents login (HTML5 validation)
 - Logout redirects back to the login form
 
-### Order flow (`order.spec.ts`)
-- Happy path — add one item, fill shipping details, submit and see confirmation
-- **Confirmation message contains the correct price and shipping address** *(data integrity)*
-- Cart shows all five products available to add
+### Shop & cart ([`shop-cart.spec.ts`](tests/shop-cart.spec.ts))
+- All five products are listed by name
+- Adding a product makes it appear in the cart row
+- Cart reflects correct products, prices and total for multiple items *(data integrity)*
 - Adding multiple items updates the cart total
-- Submitting the checkout form with empty required fields shows validation
+- Adding a duplicate item triggers a native alert and does not add it twice
+- Removing an item updates the cart and reduces the total
+- *(fixme)* Empty cart should not allow proceeding to checkout — site bug, kept as `fixme` to surface it
 
-### File upload (`file-upload.spec.ts`)
-- Uploading a `.txt` file shows a success message
-- Uploading a `.pdf` file shows a success message
-- Uploading a `.png` image shows a success message
+### Shipping & checkout ([`shipping-details.spec.ts`](tests/shipping-details.spec.ts))
+- Shipping form is visible after proceeding to checkout
+- Submitting with empty required fields shows validation
+- Valid shipping details allow the order to be submitted
+- **Confirmation contains the correct price and shipping address** *(end-to-end data integrity)*
+
+### Order flow ([`order-flow.spec.ts`](tests/order-flow.spec.ts))
+- Single e2e smoke covering the brief's happy path: **login → add to cart → checkout → confirmation → logout**
+
+### File upload ([`file-upload.spec.ts`](tests/file-upload.spec.ts))
+- Valid CSV passes schema validation and contains the expected first row *(data integrity)*
+- Malformed CSV fails schema validation and lists missing headers
+- Uploading a valid CSV shows a success message
 - Selected file name is reflected in the input before submit
-- Submitting without selecting a file does not show a success message
+- Submitting without a file does not show success
 
 ---
 
 ## Design decisions
 
-**No hardcoded credentials** — `test-data/test.data.ts` reads `USER_EMAIL` and `USER_PASSWORD` from environment variables and throws at startup if either is missing. This prevents accidental credential leaks in version control.
+**No hardcoded credentials.** `test-data/test.data.ts` reads `USER_EMAIL` / `USER_PASSWORD` from the environment via `requireEnv()`, which throws at startup with a clear message if either is missing. `.env` is git-ignored.
 
-**POM with focused responsibilities** — each page object exposes only the interactions its page owns. The `CheckoutPage` includes `expectConfirmationContains()` which asserts price and address are correctly reflected in the order summary, verifying end-to-end data integrity through the full purchase flow.
+**POM with public-getter locators.** Each page object exposes locators as public getters; assertions live in the tests, not in the page objects. The only `expect*` methods on a page object are compound ones that assert 3+ elements together (e.g. `expectConfirmationContains()` validates price + street + city + country in the order summary).
 
-**Stable locators** — selectors prefer `getByRole`, `getByText`, and known element IDs (`#logout`). CSS class names are avoided where possible since they are presentational and change more frequently than semantic structure.
+**Stable, semantic locators.** Selectors prefer `getByRole`, `getByText`, and known IDs (`#logout`). CSS class names are avoided. Notable non-obvious locators are kept inside the page objects so tests stay readable.
 
-**Shared login fixture** — `fixtures.ts` exposes a `shopPage` fixture that handles login once before each order test, keeping test bodies focused on the scenario under test rather than setup boilerplate.
+**Two-project split in `playwright.config.ts`.** `chromium` ignores the API spec and runs against the live site; `api` matches only the API spec and points at the local Docker container. This means `npm test` never touches Docker.
 
-**Sample upload files are minimal and purpose-built** — `sample.txt`, `sample.pdf`, and `sample.png` contain no real data and are kept small to keep the repo lightweight.
+**Shared fixtures.** `fixtures.ts` exposes `loginPage`, `shopPage`, `shippingDetailsPage` and `uploadPage`. `shopPage` handles login once so cart/checkout tests can focus on the scenario under test.
+
+**Data integrity validation as a Data-Integration signal.** The cart and confirmation tests assert *exact* prices and addresses, and the upload suite validates the CSV schema and a specific cell value before upload. These are direct demonstrations of the kind of validation the role is about.
+
+---
+
+## Continuous Integration (GitHub Actions)
+
+Every push to `main` and every pull request runs the full suite on GitHub-hosted Ubuntu runners.
+
+**Workflow:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+
+**What it does:**
+1. Checks out the repo, sets up Node 22 with `npm` cache
+2. `npm ci` installs deps
+3. `npx playwright install --with-deps chromium` (UI leg only)
+4. `docker run` starts the qa-practice-api container (API leg only) and a curl loop polls `/api/v1/employees` until it responds 200
+5. Runs `playwright test --project=<chromium|api>`
+6. Uploads the HTML report and (on failure) traces, videos and container logs as artifacts
+
+**Matrix strategy:** the `chromium` (UI) and `api` jobs run in parallel via a matrix with `fail-fast: false`, so one leg failing doesn't cancel the other.
+
+**Required GitHub repository secrets:**
+- `USER_EMAIL` — login email for the auth tests
+- `USER_PASSWORD` — login password for the auth tests
+
+(Without these, `requireEnv()` throws at startup. Set them in **Settings → Secrets and variables → Actions**.)
+
+### How to inspect a CI run (recruiter quick path)
+
+```bash
+# View the latest run in the browser
+gh run view --web
+
+# Or list runs and pick one
+gh run list
+
+# Download the HTML report artifact and open it locally
+gh run download --name playwright-report-chromium
+npx playwright show-report
+```
+
+The HTML report includes test status, traces, screenshots, and videos for any failures — everything you need to diagnose a regression without re-running the suite.
 
 ---
 
 ## Bonus: API tests
 
-A small API suite ([`tests/bonus-api.spec.ts`](tests/bonus-api.spec.ts)) exercises the practice REST API using Playwright's `request` fixture. It is isolated in its own `api` project in [`playwright.config.ts`](playwright.config.ts) so the UI suite can run on its own — `npm test` does not touch this suite, and skipping it has no impact on UI coverage.
+A small API suite ([`tests/bonus-api.spec.ts`](tests/bonus-api.spec.ts)) exercises a practice REST API using Playwright's `request` fixture. It is isolated in its own `api` project — `npm test` does not touch it, and skipping it has no impact on UI coverage.
 
 ### Prerequisite
 
-Docker must be installed and running. (CPU virtualization must be enabled in BIOS — Docker Desktop will not start otherwise.)
+Docker installed and running. (CPU virtualization must be enabled in BIOS — Docker Desktop will not start otherwise.)
 
 ### Start the API container
 
@@ -130,7 +197,7 @@ Docker must be installed and running. (CPU virtualization must be enabled in BIO
 docker run -d --rm --name qa-practice-api -p 8887:8081 rvancea/qa-practice-api:latest
 ```
 
-Swagger UI is then available at <http://localhost:8887/swagger-ui.html>.
+The container listens on port 8081 internally; the `8887:8081` mapping exposes it on `http://localhost:8887`. Swagger UI is then available at <http://localhost:8887/swagger-ui.html>.
 
 ### Run the suite
 
