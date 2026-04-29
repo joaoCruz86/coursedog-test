@@ -132,19 +132,53 @@ npm run report      # open the most recent HTML report
 
 ---
 
-## Design decisions
+## Design Decisions
 
-**No hardcoded credentials.** `test-data/test.data.ts` reads `USER_EMAIL` / `USER_PASSWORD` from the environment via `requireEnv()`, which throws at startup with a clear message if either is missing. `.env` is git-ignored.
+### Page Object Model
+Each page is a class in [`pages/`](pages/) that encapsulates its locators and actions. Tests interact only with page methods and getters — never with raw locators directly — so a UI change is a one-line update in one file rather than a search-and-replace across specs.
 
-**POM with public-getter locators.** Each page object exposes locators as public getters; assertions live in the tests, not in the page objects. The only `expect*` methods on a page object are compound ones that assert 3+ elements together (e.g. `expectConfirmationContains()` validates price + street + city + country in the order summary).
+Locators are exposed as **public getters** rather than wrapped in single-assertion methods like `isLoginButtonVisible()`. This keeps assertions where they belong — in the test — and avoids hiding `expect()` calls inside page objects, where a failure is harder to attribute to either the app or the test setup. The only `expect*` methods on a page object are *compound* ones that assert 3+ related elements together (e.g. `expectConfirmationContains()` validates price + street + city + country in the order summary in one call).
 
-**Stable, semantic locators.** Selectors prefer `getByRole`, `getByText`, and known IDs (`#logout`). CSS class names are avoided. Notable non-obvious locators are kept inside the page objects so tests stay readable.
+### Fixtures
+[`fixtures.ts`](fixtures.ts) extends Playwright's base `test` with four fixtures — `loginPage`, `shopPage`, `shippingDetailsPage`, `uploadPage` — so individual specs stay focused on their scenario rather than repeating setup. Notably, the `shopPage` fixture performs login once before each cart/checkout test, while `loginPage` deliberately does **not** log in (so the auth suite can test the login flow itself). The split is intentional: setting up auth shouldn't be the same fixture used to test auth.
 
-**Two-project split in `playwright.config.ts`.** `chromium` ignores the API spec and runs against the live site; `api` matches only the API spec and points at the local Docker container. This means `npm test` never touches Docker.
+### Test Data
+Fixed test inputs and expected values are centralised in [`test-data/test.data.ts`](test-data/test.data.ts):
+- **`CREDENTIALS`** — login emails/passwords. The valid pair is read from environment variables via `requireEnv()`, which throws at startup with a clear message if `USER_EMAIL` or `USER_PASSWORD` is missing. The invalid/wrong-password variants are intentional constants for negative tests.
+- **`PRODUCTS`** — product names paired with their **exact** prices. Tests assert these values directly, which is what catches a silent price-display bug.
+- **`SHIPPING`** — phone, street, city, country used for the checkout flow.
 
-**Shared fixtures.** `fixtures.ts` exposes `loginPage`, `shopPage`, `shippingDetailsPage` and `uploadPage`. `shopPage` handles login once so cart/checkout tests can focus on the scenario under test.
+Sample upload files live in [`test-data/uploads/`](test-data/uploads/), and CSV schema validation lives in [`test-data/csv-schema.ts`](test-data/csv-schema.ts). File-system concerns (path resolution) are kept out of page objects via the `samplePath()` helper in [`test-data/paths.ts`](test-data/paths.ts) — page objects model the UI only.
 
-**Data integrity validation as a Data-Integration signal.** The cart and confirmation tests assert *exact* prices and addresses, and the upload suite validates the CSV schema and a specific cell value before upload. These are direct demonstrations of the kind of validation the role is about.
+This data-integrity discipline (exact prices, exact addresses, schema-validated CSVs, specific cell values) is the most direct signal for the **Data Integration QA Engineer** role: every assertion verifies that a value flows through the system unchanged.
+
+### Locator Strategy
+Locators follow Playwright's recommended priority, from most to least stable:
+
+1. **`getByRole`** — semantic, accessible, resilient to DOM restructuring. Used wherever an element has a meaningful role + accessible name (e.g. `getByRole('button', { name: /add to cart/i })`, `getByRole('heading', { name: 'Shipping Details' })`).
+2. **`getByPlaceholder` / `getByText`** — used when no role is exposed but a stable text anchor exists (e.g. `getByPlaceholder(/phone/i)`, `getByText(/congrats/i)` for the confirmation message).
+3. **Stable IDs** — used where the DOM exposes a unique, semantic ID (e.g. `#logout`, chosen because `getByText(/log.?out/i)` matched two elements on the page).
+4. **CSS class names** — avoided as a default since they're presentational, but used pragmatically when the markup leaves no semantic hook. The cart row uses `.cart-row` filtered by product text — the only stable way to scope a row on this site — and the cart total wrapper uses `strong:has-text("Total")` then `..` to walk to the parent that holds the price text node.
+5. **`.nth()` positional locators** — last resort. The shipping form's city input is `getByRole('textbox').nth(2)` because its label is a `<div>`, not a `<label>` element, so `getByLabel(/city/i)` does not bind to it. Documented inline so a future maintainer doesn't waste time second-guessing it.
+
+Notable locator gotchas are kept inside the page objects (with comments where the choice is non-obvious) so the test bodies stay readable.
+
+### Two-project split (`chromium` and `api`)
+[`playwright.config.ts`](playwright.config.ts) defines two projects:
+- **`chromium`** — the UI suite. Ignores `bonus-api.spec.ts`, runs against the live `qa-practice.netlify.app` site.
+- **`api`** — the bonus API suite. Matches only `bonus-api.spec.ts`, points at `http://localhost:8887` (the Docker container).
+
+This split is what makes `npm test` work with **zero Docker setup** — recruiters can clone, install, and run the main deliverable in under a minute. The API suite is opt-in via `npm run test:api` only when Docker is running.
+
+### CI Configuration
+[`playwright.config.ts`](playwright.config.ts) is tuned differently for local versus CI:
+- **Workers**: `4` — fast local feedback. CI uses the same value; the suite is small enough that contention isn't an issue.
+- **Retries**: `0` locally for fast feedback, `2` on CI (`process.env.CI ? 2 : 0`) to absorb network flakiness on shared runners without masking real failures.
+- **`forbidOnly: !!process.env.CI`** — fails the build if anyone accidentally commits a `test.only(...)`.
+- **Trace**: `on-first-retry` — full step-by-step trace captured the moment a flaky test retries, available in the HTML report for inspection.
+- **Screenshots**: `only-on-failure` — keeps report size minimal while still capturing what went wrong.
+- **Video**: `on-first-retry` — same trade-off as trace.
+- **Reporter**: `[['html', { open: 'never' }], ['list']]` — the `list` reporter gives readable per-test progress in CI logs, while `html` produces the downloadable artifact.
 
 ---
 
